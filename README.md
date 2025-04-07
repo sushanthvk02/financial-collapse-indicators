@@ -1,0 +1,1 @@
+# financial-collapse-indicators
