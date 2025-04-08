@@ -1,0 +1,27 @@
+library(dplyr)
+library(tidyr)
+library(readr)
+
+gdp_clean_long <- read_csv("data/raw/GDP_Growth - WBG.csv",
+                           na = c("", "NA", "..", "n/a")) %>%
+  pivot_longer(
+    cols = `1960`:`2023`,          # pivot all year columns
+    names_to = "Year",
+    values_to = "GDP_Growth"
+  ) %>%
+  mutate(
+    Year = as.numeric(Year),
+    GDP_Growth = as.numeric(GDP_Growth)
+  ) %>%
+  filter(Year >= 1990 & Year <= 2023) %>%  # keep only 1990–2023
+  rename(
+    Country = `Country Name`,
+    CountryCode = `Country Code`
+  ) %>%
+  select(Country, CountryCode, Year, GDP_Growth)  # keep key columns
+
+# Preview the cleaned data
+head(gdp_clean_long)
+
+# (Optional) Write out the cleaned CSV
+write_csv(gdp_clean_long, "data/cleaned/GDP_Growth_rate_long.csv")
