@@ -61,8 +61,8 @@ Future stages may include:
 
 ## 👥 Authors
 
-- **Viswa Sushanth Karuturi** — Data science, modeling, analysis, documentation  
-- **Naeem Almohtaseb** — Data sourcing, writing support, planning, interpretation
+- **Viswa Sushanth Karuturi** 
+- **Naeem Almohtaseb** 
 
 ---
 
