@@ -54,7 +54,7 @@ Future stages may include:
 ## 🚧 What’s Next?
 
 - Design and compute a `collapse_score` and binary `collapse_risk`
-- Explore logistic regression or tree-based models
+- Explore more models
 - Evaluate predictive performance with training/testing splits or cross-validation
 
 ---
