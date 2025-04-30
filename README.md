@@ -8,7 +8,6 @@ This project investigates the economic performance and potential collapse risk o
 
 - Predict a country's **economic_index** (0–100 scale) using key macroeconomic indicators.
 - Identify the most influential predictors of economic stability and performance.
-- Explore a potential **collapse_score** or **collapse_risk** metric in future stages.
 - Visualize trends, outliers, and relationships in macroeconomic data.
 - Build interpretable models that can aid in early warning or policy evaluation.
 
@@ -34,9 +33,6 @@ While GDP growth and inflation are often cited in isolation, real-world economic
 | `black_market`   | Black market activity index                              |
 | `cpi`            | Consumer Price Index (general price level)               |
 
-Future stages may include:
-- A derived `collapse_score = 100 - economic_index`
-- A binary `collapse_risk` flag based on a threshold
 
 ---
 
@@ -53,7 +49,6 @@ Future stages may include:
 
 ## 🚧 What’s Next?
 
-- Design and compute a `collapse_score` and binary `collapse_risk`
 - Explore more models
 - Evaluate predictive performance with training/testing splits or cross-validation
 
