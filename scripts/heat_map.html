@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multi-Index World Heatmap (1990-2020)</title>
+  
+  <!-- Highcharts libraries -->
+  <script src="https://code.highcharts.com/maps/highmaps.js"></script>
+  <script src="https://code.highcharts.com/maps/modules/data.js"></script>
+  <script src="https://code.highcharts.com/maps/modules/exporting.js"></script>
+  <script src="https://code.highcharts.com/maps/modules/offline-exporting.js"></script>
+  <script src="https://code.highcharts.com/mapdata/custom/world.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+  
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 5px;
+    }
+    
+    h1 {
+      text-align: center;
+      margin-bottom: 5px;
+    }
+    
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-top: 0;
+      margin-bottom: 20px;
+    }
+    
+    #map-container {
+      height: 600px;
+      margin-bottom: 20px;
+    }
+    
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    
+    .time-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      margin-bottom: 15px;
+    }
+    
+    .dataset-selector {
+      margin-bottom: 15px;
+      width: 100%;
+      text-align: center;
+    }
+    
+    .year-slider {
+      width: 400px;
+      margin: 0 15px;
+    }
+    
+    button {
+      padding: 8px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      margin: 0 5px;
+    }
+    
+    button:hover {
+      background-color: #45a049;
+    }
+    
+    button.dataset-btn {
+      margin: 5px;
+    }
+    
+    button.active {
+      background-color: #2c662f;
+      font-weight: bold;
+    }
+    
+    .year-display {
+      font-size: 18px;
+      font-weight: bold;
+      margin: 0 15px;
+      min-width: 60px;
+      text-align: center;
+    }
+    
+    .stats-panel {
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    
+    .stat-card {
+      background-color: white;
+      padding: 15px;
+      border-radius: 5px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      width: 200px;
+      margin-bottom: 15px;
+      text-align: center;
+    }
+    
+    .stat-title {
+      font-weight: bold;
+      margin-bottom: 5px;
+      color: #555;
+    }
+    
+    .stat-value {
+      font-size: 18px;
+      color: #333;
+    }
+    
+    .top-countries {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    
+    .countries-list {
+      width: 48%;
+    }
+    
+    .country-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .country-name {
+      font-weight: bold;
+    }
+    
+    .country-value {
+      color: #333;
+    }
+    
+    .dataset-info {
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #f9f9f9;
+      border-radius: 5px;
+      border-left: 4px solid #4CAF50;
+    }
+    
+    /* Loading spinner */
+    .loader {
+      border: 6px solid #f3f3f3;
+      border-radius: 50%;
+      border-top: 6px solid #3498db;
+      width: 40px;
+      height: 40px;
+      animation: spin 2s linear infinite;
+      margin: 20px auto;
+      display: none;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* File input */
+    .file-input-container {
+      text-align: center;
+      margin: 20px 0;
+      padding: 20px;
+      border: 2px dashed #ddd;
+      border-radius: 5px;
+      background-color: #f9f9f9;
+    }
+    
+    #file-input {
+      display: none;
+    }
+    
+    .file-input-label {
+      cursor: pointer;
+      padding: 10px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border-radius: 3px;
+      display: inline-block;
+    }
+    
+    .file-input-label:hover {
+      background-color: #45a049;
+    }
+    
+    #file-name {
+      margin-top: 10px;
+      font-style: italic;
+      color: #666;
+    }
+    
+    #data-status {
+      margin-top: 10px;
+      padding: 10px;
+      display: none;
+    }
+    
+    #data-status.success {
+      background-color: #d4edda;
+      border-left: 4px solid #28a745;
+      color: #155724;
+    }
+    
+    #data-status.error {
+      background-color: #f8d7da;
+      border-left: 4px solid #dc3545;
+      color: #721c24;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Multi-Index World Heatmap (1990-2020)</h1>
+    <p class="subtitle">Explore different metrics by country over time</p>
+    
+    <div class="file-input-container">
+      <label for="file-input" class="file-input-label">Upload CSV File</label>
+      <input type="file" id="file-input" accept=".csv">
+      <div id="file-name">No file selected</div>
+      <div id="data-status"></div>
+    </div>
+    
+    <div class="controls">
+      <div class="dataset-selector">
+        <div class="dataset-btn-container">
+          <button id="btn-economic" class="dataset-btn active" data-dataset="economic_index">Economic Index</button>
+          <button id="btn-gdp" class="dataset-btn" data-dataset="gdp_growth">GDP Growth</button>
+          <button id="btn-debt" class="dataset-btn" data-dataset="gov_debt">Government Debt</button>
+          <button id="btn-inflation" class="dataset-btn" data-dataset="inflation_rate">Inflation Rate</button>
+          <button id="btn-interest" class="dataset-btn" data-dataset="interest_rates">Interest Rates</button>
+          <button id="btn-blackmarket" class="dataset-btn" data-dataset="black_market">Black Market</button>
+          <button id="btn-cpi" class="dataset-btn" data-dataset="cpi">CPI</button>
+        </div>
+        <div id="dataset-info" class="dataset-info">
+          <strong>Economic Index</strong>: Measures overall economic prosperity and development (0-100).
+        </div>
+      </div>
+      
+      <div class="time-controls">
+        <button id="play-button">▶ Play</button>
+        <input type="range" id="year-slider" class="year-slider" min="1990" max="2020" value="1990" step="1">
+        <div id="year-display" class="year-display">1990</div>
+        <button id="reset-button">Reset</button>
+      </div>
+    </div>
+    
+    <div id="map-container"></div>
+    <div id="loader" class="loader"></div>
+    
+    <div class="stats-panel">
+      <div class="stat-card">
+        <div class="stat-title">Global Average</div>
+        <div id="global-avg" class="stat-value">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Countries with Data</div>
+        <div id="countries-count" class="stat-value">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Highest Value</div>
+        <div id="highest-value" class="stat-value">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Lowest Value</div>
+        <div id="lowest-value" class="stat-value">--</div>
+      </div>
+    </div>
+    
+    <div class="top-countries">
+      <div class="countries-list">
+        <h3>Top 5 Countries</h3>
+        <div id="top-countries"></div>
+      </div>
+      <div class="countries-list">
+        <h3>Bottom 5 Countries</h3>
+        <div id="bottom-countries"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Main visualization code
+    document.addEventListener('DOMContentLoaded', function() {
+      // Variables
+      let currentYear = 1990;
+      let currentDataset = 'economic_index';
+      let isPlaying = false;
+      let playInterval;
+      let csvData = [];
+      let parsedData = {};
+      let years = [];
+      
+      // DOM elements
+      const yearSlider = document.getElementById('year-slider');
+      const yearDisplay = document.getElementById('year-display');
+      const playButton = document.getElementById('play-button');
+      const resetButton = document.getElementById('reset-button');
+      const globalAvg = document.getElementById('global-avg');
+      const countriesCount = document.getElementById('countries-count');
+      const highestValue = document.getElementById('highest-value');
+      const lowestValue = document.getElementById('lowest-value');
+      const topCountries = document.getElementById('top-countries');
+      const bottomCountries = document.getElementById('bottom-countries');
+      const datasetInfo = document.getElementById('dataset-info');
+      const loader = document.getElementById('loader');
+      const datasetButtons = document.querySelectorAll('.dataset-btn');
+      const fileInput = document.getElementById('file-input');
+      const fileName = document.getElementById('file-name');
+      const dataStatus = document.getElementById('data-status');
+      
+      // Country name to ISO 3166-1 alpha-2 code mapping
+      const countryCodeMapping = {
+        "Afghanistan": "af",
+        "Angola": "ao",
+        "Albania": "al",
+        "Andorra": "ad",
+        "United Arab Emirates": "ae",
+        "Argentina": "ar",
+        "Armenia": "am",
+        "Antigua and Barbuda": "ag",
+        "Australia": "au",
+        "Austria": "at",
+        "Azerbaijan": "az",
+        "Burundi": "bi",
+        "Belgium": "be",
+        "Benin": "bj",
+        "Burkina Faso": "bf",
+        "Bangladesh": "bd",
+        "Bulgaria": "bg",
+        "Bahrain": "bh",
+        "The Bahamas": "bs",
+        "Bosnia and Herzegovina": "ba",
+        "Belarus": "by",
+        "Belize": "bz",
+        "Bolivia": "bo",
+        "Brazil": "br",
+        "Barbados": "bb",
+        "Brunei Darussalam": "bn",
+        "Bhutan": "bt",
+        "Botswana": "bw",
+        "Central African Republic": "cf",
+        "Canada": "ca",
+        "Switzerland": "ch",
+        "Chile": "cl",
+        "China": "cn",
+        "Cote d'Ivoire": "ci",
+        "Cameroon": "cm",
+        "Congo Kinshasa": "cd",
+        "Congo Brazzaville": "cg",
+        "Colombia": "co",
+        "Comoros": "km",
+        "Cabo Verde": "cv",
+        "Costa Rica": "cr",
+        "Cuba": "cu",
+        "Cyprus": "cy",
+        "Czechia": "cz",
+        "Germany": "de",
+        "Djibouti": "dj",
+        "Dominica": "dm",
+        "Denmark": "dk",
+        "Dominican Republic": "do",
+        "Algeria": "dz",
+        "Ecuador": "ec",
+        "Egypt": "eg",
+        "Eritrea": "er",
+        "Spain": "es",
+        "Estonia": "ee",
+        "Ethiopia": "et",
+        "Finland": "fi",
+        "Fiji": "fj",
+        "France": "fr",
+        "Micronesia": "fm",
+        "Gabon": "ga",
+        "United Kingdom": "gb",
+        "Georgia": "ge",
+        "Ghana": "gh",
+        "Guinea": "gn",
+        "Gambia": "gm",
+        "Guinea-Bissau": "gw",
+        "Equatorial Guinea": "gq",
+        "Greece": "gr",
+        "Grenada": "gd",
+        "Guatemala": "gt",
+        "Guyana": "gy",
+        "Croatia": "hr",
+        "Haiti": "ht",
+        "Hungary": "hu",
+        "Indonesia": "id",
+        "India": "in",
+        "Ireland": "ie",
+        "Iran": "ir",
+        "Iraq": "iq",
+        "Iceland": "is",
+        "Israel": "il",
+        "Italy": "it",
+        "Jamaica": "jm",
+        "Jordan": "jo",
+        "Japan": "jp",
+        "Kazakhstan": "kz",
+        "Kenya": "ke",
+        "Kyrgyz Republic": "kg",
+        "Cambodia": "kh",
+        "Kiribati": "ki",
+        "St. Kitts and Nevis": "kn",
+        "South Korea": "kr",
+        "Kuwait": "kw",
+        "Laos": "la",
+        "Lebanon": "lb",
+        "Liberia": "lr",
+        "Libya": "ly",
+        "St. Lucia": "lc",
+        "Liechtenstein": "li",
+        "Sri Lanka": "lk",
+        "Lesotho": "ls",
+        "Lithuania": "lt",
+        "Luxembourg": "lu",
+        "Latvia": "lv",
+        "Morocco": "ma",
+        "Monaco": "mc",
+        "Moldova": "md",
+        "Madagascar": "mg",
+        "Maldives": "mv",
+        "Mexico": "mx",
+        "Marshall Islands": "mh",
+        "North Macedonia": "mk",
+        "Mali": "ml",
+        "Malta": "mt",
+        "Myanmar": "mm",
+        "Montenegro": "me",
+        "Mongolia": "mn",
+        "Mozambique": "mz",
+        "Mauritania": "mr",
+        "Mauritius": "mu",
+        "Malawi": "mw",
+        "Malaysia": "my",
+        "Namibia": "na",
+        "Niger": "ne",
+        "Nigeria": "ng",
+        "Nicaragua": "ni",
+        "Netherlands": "nl",
+        "Norway": "no",
+        "Nepal": "np",
+        "Nauru": "nr",
+        "New Zealand": "nz",
+        "Oman": "om",
+        "Pakistan": "pk",
+        "Panama": "pa",
+        "Peru": "pe",
+        "Philippines": "ph",
+        "Palau": "pw",
+        "Papua New Guinea": "pg",
+        "Poland": "pl",
+        "Portugal": "pt",
+        "Paraguay": "py",
+        "Qatar": "qa",
+        "Romania": "ro",
+        "Russian Federation": "ru",
+        "Rwanda": "rw",
+        "Saudi Arabia": "sa",
+        "Sudan": "sd",
+        "Senegal": "sn",
+        "Singapore": "sg",
+        "Solomon Islands": "sb",
+        "Sierra Leone": "sl",
+        "El Salvador": "sv",
+        "San Marino": "sm",
+        "Somalia": "so",
+        "Serbia": "rs",
+        "South Sudan": "ss",
+        "Sao Tome and Principe": "st",
+        "Suriname": "sr",
+        "Slovakia": "sk",
+        "Slovenia": "si",
+        "Sweden": "se",
+        "Eswatini": "sz",
+        "Seychelles": "sc",
+        "Syria": "sy",
+        "Chad": "td",
+        "Togo": "tg",
+        "Thailand": "th",
+        "Tajikistan": "tj",
+        "Turkmenistan": "tm",
+        "Timor-Leste": "tl",
+        "Tonga": "to",
+        "Trinidad and Tobago": "tt",
+        "Tunisia": "tn",
+        "Turkey": "tr",
+        "Tuvalu": "tv",
+        "Tanzania": "tz",
+        "Uganda": "ug",
+        "Ukraine": "ua",
+        "Uruguay": "uy",
+        "United States": "us",
+        "Uzbekistan": "uz",
+        "Venezuela": "ve",
+        "Vietnam": "vn",
+        "Vanuatu": "vu",
+        "Samoa": "ws",
+        "Kosovo": "xk",
+        "Yemen": "ye",
+        "South Africa": "za",
+        "Zambia": "zm",
+        "Zimbabwe": "zw",
+        "Honduras": "hn",
+        "Palestine": "ps",
+        "St. Vincent and the Grenadines": "vc"
+      };      
+      // Dataset information
+      const datasetInfo_texts = {
+        'economic_index': "<strong>Economic Index</strong>: Measures overall economic prosperity and development.",
+        'gdp_growth': "<strong>GDP Growth</strong>: Annual percentage growth in Gross Domestic Product.",
+        'gov_debt': "<strong>Government Debt</strong>: Government debt as a percentage of GDP.",
+        'inflation_rate': "<strong>Inflation Rate</strong>: Annual percentage change in consumer prices.",
+        'interest_rates': "<strong>Interest Rates</strong>: Central bank interest rates.",
+        'black_market': "<strong>Black Market</strong>: Estimate of black market activity as a percentage of the formal economy.",
+        'cpi': "<strong>Consumer Price Index (CPI)</strong>: Measures the average change over time in the prices paid by consumers for a basket of goods and services."
+      };
+      
+      // Color schemes for different datasets
+      const colorSchemes = {
+        'economic_index': [
+          [0, '#c4e6ff'],      // Light blue for lowest values
+          [0.5, '#0088ff'],    // Medium blue for middle values
+          [1, '#004080']       // Dark blue for highest values
+        ],
+        'gdp_growth': [
+          [0, '#c4ffc4'],      // Light green for lowest values
+          [0.5, '#00cc00'],    // Medium green for middle values
+          [1, '#006600']       // Dark green for highest values
+        ],
+        'gov_debt': [
+          [0, '#ffc4c4'],      // Light red for lowest values
+          [0.5, '#ff4c4c'],    // Medium red for middle values
+          [1, '#990000']       // Dark red for highest values
+        ],
+        'inflation_rate': [
+          [0, '#ffffe0'],      // Light yellow for lowest values
+          [0.5, '#ffcc00'],    // Medium yellow for middle values
+          [1, '#cc6600']       // Orange-brown for highest values
+        ],
+        'interest_rates': [
+          [0, '#e0e0ff'],      // Light purple for lowest values
+          [0.5, '#8080ff'],    // Medium purple for middle values
+          [1, '#4040a0']       // Dark purple for highest values
+        ],
+        'black_market': [
+          [0, '#d9d9d9'],      // Light gray for lowest values
+          [0.5, '#808080'],    // Medium gray for middle values
+          [1, '#333333']       // Dark gray for highest values
+        ],
+        'cpi': [
+          [0, '#ffe0cc'],      // Light orange for lowest values
+          [0.5, '#ff9966'],    // Medium orange for middle values
+          [1, '#cc5200']       // Dark orange for highest values
+        ]
+      };
+      
+      // Generate default mock data to show something before CSV is loaded
+      generateMockData();
+      
+      // Create the initial map
+      createMap(currentYear, currentDataset);
+      
+      // Update statistics
+      updateStatistics(currentYear, currentDataset);
+      
+      // Event listeners
+      yearSlider.addEventListener('input', function() {
+        currentYear = parseInt(this.value);
+        yearDisplay.textContent = currentYear;
+        updateVisualization(currentYear, currentDataset);
+      });
+      
+      playButton.addEventListener('click', togglePlay);
+      resetButton.addEventListener('click', resetVisualization);
+      
+      // Dataset selection buttons
+      datasetButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          // Show loading spinner
+          loader.style.display = 'block';
+          
+          // Get the selected dataset
+          const dataset = this.dataset.dataset;
+          
+          // Remove 'active' class from all buttons
+          datasetButtons.forEach(btn => btn.classList.remove('active'));
+          
+          // Add 'active' class to the clicked button
+          this.classList.add('active');
+          
+          // Update current dataset
+          currentDataset = dataset;
+          
+          // Update dataset info
+          datasetInfo.innerHTML = datasetInfo_texts[dataset];
+          
+          // Update visualization after a small delay (to allow UI to update)
+          setTimeout(() => {
+            updateVisualization(currentYear, currentDataset);
+            // Hide loading spinner
+            loader.style.display = 'none';
+          }, 100);
+        });
+      });
+      
+      // File input listener
+      fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+          fileName.textContent = `Selected file: ${file.name}`;
+          
+          // Show loading spinner
+          loader.style.display = 'block';
+          
+          // Read and parse the CSV file
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            const csv = e.target.result;
+            
+            // Parse CSV using PapaParse
+            Papa.parse(csv, {
+              header: true,
+              dynamicTyping: true,
+              skipEmptyLines: true,
+              complete: function(results) {
+                csvData = results.data;
+                
+                if (csvData.length > 0) {
+                  processCSVData();
+                  
+                  // Update year slider range based on available years
+                  if (years.length > 0) {
+                    yearSlider.min = Math.min(...years);
+                    yearSlider.max = Math.max(...years);
+                    currentYear = Math.min(...years);
+                    yearSlider.value = currentYear;
+                    yearDisplay.textContent = currentYear;
+                  }
+                  
+                  // Update visualization
+                  updateVisualization(currentYear, currentDataset);
+                  
+                  // Show success message
+                  dataStatus.textContent = `Successfully loaded ${csvData.length} records from ${file.name}`;
+                  dataStatus.className = 'success';
+                  dataStatus.style.display = 'block';
+                } else {
+                  // Show error message
+                  dataStatus.textContent = 'The CSV file appears to be empty or invalid.';
+                  dataStatus.className = 'error';
+                  dataStatus.style.display = 'block';
+                }
+                
+                // Hide loading spinner
+                loader.style.display = 'none';
+              },
+              error: function(error) {
+                console.error('Error parsing CSV:', error);
+                
+                // Show error message
+                dataStatus.textContent = `Error parsing CSV: ${error.message}`;
+                dataStatus.className = 'error';
+                dataStatus.style.display = 'block';
+                
+                // Hide loading spinner
+                loader.style.display = 'none';
+              }
+            });
+          };
+          
+          reader.onerror = function() {
+            console.error('Error reading file');
+            
+            // Show error message
+            dataStatus.textContent = 'Error reading file';
+            dataStatus.className = 'error';
+            dataStatus.style.display = 'block';
+            
+            // Hide loading spinner
+            loader.style.display = 'none';
+          };
+          
+          reader.readAsText(file);
+        }
+      });
+      
+      // Functions
+      function processCSVData() {
+        // Initialize parsed data structure
+        parsedData = {};
+        years = [];
+        
+        // Group data by year and country
+        csvData.forEach(row => {
+          // Make sure we have country and year
+          if (!row.country || !row.year) {
+            return;
+          }
+          
+          const year = row.year;
+          const country = row.country;
+          
+          // Add year to years array if not already there
+          if (!years.includes(year)) {
+            years.push(year);
+          }
+          
+          // Initialize year object if it doesn't exist
+          if (!parsedData[year]) {
+            parsedData[year] = {};
+          }
+          
+          // Get ISO code for the country
+          const isoCode = getCountryCode(country);
+          
+          if (isoCode) {
+            // For each column, add the data
+            parsedData[year][isoCode] = {
+              economic_index: row.economic_index !== undefined ? row.economic_index : null,
+              gdp_growth: row.gdp_growth !== undefined ? row.gdp_growth : null,
+              gov_debt: row.gov_debt !== undefined ? row.gov_debt : null,
+              inflation_rate: row.inflation_rate !== undefined ? row.inflation_rate : null,
+              interest_rates: row.interest_rates !== undefined ? row.interest_rates : null,
+              black_market: row.black_market !== undefined ? row.black_market : null,
+              cpi: row.cpi !== undefined ? row.cpi : null
+            };
+          }
+        });
+        
+        // Sort years in ascending order
+        years.sort((a, b) => a - b);
+      }
+      
+      function getCountryCode(countryName) {
+        // Normalize country name (lowercase, remove 'The ' prefix)
+        const normalized = countryName.trim()
+          .replace(/^the\s+/i, '')
+          .toLowerCase();
+        
+        // Try direct match first
+        for (const [name, code] of Object.entries(countryCodeMapping)) {
+          if (name.toLowerCase() === normalized) {
+            return code;
+          }
+        }
+        
+        // Try normalized match (just check if the country name contains the key)
+        for (const [name, code] of Object.entries(countryCodeMapping)) {
+          if (normalized.includes(name.toLowerCase()) || name.toLowerCase().includes(normalized)) {
+            return code;
+          }
+        }
+        
+        console.warn(`No ISO code found for country: ${countryName}`);
+        return null;
+      }
+      
+      function generateMockData() {
+        // Simple mock data for demonstration
+        parsedData = {};
+        
+        // Generate data for years 1990-2020
+        for (let year = 1990; year <= 2020; year++) {
+          parsedData[year] = {};
+          
+          // Add some random data for a few countries
+          const countries = ["us", "ca", "gb", "fr", "de", "it", "jp", "cn", "in", "br", "ru", "za", "au"];
+          
+          countries.forEach(country => {
+            parsedData[year][country] = {
+              economic_index: Math.floor(Math.random() * 100),
+              gdp_growth: (Math.random() * 10 - 2).toFixed(1),
+              gov_debt: Math.floor(Math.random() * 150),
+              inflation_rate: (Math.random() * 15).toFixed(1),
+              interest_rates: (Math.random() * 12).toFixed(1),
+              black_market: Math.floor(Math.random() * 100),
+              cpi: Math.floor(Math.random() * 100)
+            };
+          });
+        }
+        
+        // Set years array
+        years = Array.from({length: 31}, (_, i) => 1990 + i);
+      }
+      
+      function createMap(year, dataset) {
+        // Prepare data for Highcharts
+        const mapData = [];
+        
+        // Get min and max values for scaling
+        let minValue = Infinity;
+        let maxValue = -Infinity;
+        
+        // Convert our data to Highcharts format
+        const yearData = parsedData[year] || {};
+        
+        Object.entries(yearData).forEach(([country, data]) => {
+          const value = data[dataset];
+          
+          // Skip null or undefined values
+          if (value === null || value === undefined || isNaN(value)) {
+            return;
+          }
+          
+          // Update min and max values
+          minValue = Math.min(minValue, value);
+          maxValue = Math.max(maxValue, value);
+          
+          mapData.push({
+            'hc-key': country,
+            value: value
+          });
+        });
+        
+        // Handle edge cases
+        if (minValue === Infinity) minValue = 0;
+        if (maxValue === -Infinity) maxValue = 100;
+        if (minValue === maxValue) {
+          minValue = Math.max(0, minValue - 10);
+          maxValue = maxValue + 10;
+        }
+        
+        // Create the map
+        Highcharts.mapChart('map-container', {
+          chart: {
+            map: 'custom/world',
+            borderWidth: 1
+          },
+          title: {
+            text: `${getDatasetTitle(dataset)} - ${year}`
+          },
+          subtitle: {
+            text: 'Source: Economic data'
+          },
+          mapNavigation: {
+            enabled: true,
+            buttonOptions: {
+              verticalAlign: 'bottom'
+            }
+          },
+          colorAxis: {
+            min: minValue,
+            max: maxValue,
+            stops: colorSchemes[dataset] || colorSchemes['economic_index']
+          },
+          tooltip: {
+            headerFormat: '',
+            pointFormat: '<b>{point.name}</b><br>{series.name}: {point.value:.2f}'
+          },
+          legend: {
+            layout: 'vertical',
+            align: 'left',
+            verticalAlign: 'bottom'
+          },
+          series: [{
+            data: mapData,
+            name: getDatasetTitle(dataset),
+            states: {
+              hover: {
+                color: '#ff9e2c'
+              }
+            },
+            dataLabels: {
+              enabled: false,
+              format: '{point.name}'
+            }
+          }]
+        });
+      }
+      
+      function getDatasetTitle(dataset) {
+        // Get proper title for dataset
+        const titles = {
+          'economic_index': 'Economic Index',
+          'gdp_growth': 'GDP Growth',
+          'gov_debt': 'Government Debt',
+          'inflation_rate': 'Inflation Rate',
+          'interest_rates': 'Interest Rates',
+          'black_market': 'Black Market',
+          'cpi': 'Consumer Price Index'
+        };
+        
+        return titles[dataset] || dataset;
+      }
+      
+      function updateVisualization(year, dataset) {
+        // Update map
+        createMap(year, dataset);
+        
+        // Update statistics
+        updateStatistics(year, dataset);
+      }
+      
+      function updateStatistics(year, dataset) {
+        // Get data for the current year
+        const yearData = parsedData[year] || {};
+        
+        // Collect all values for the selected dataset
+        const values = [];
+        
+        Object.entries(yearData).forEach(([country, data]) => {
+          const value = data[dataset];
+          if (value !== null && value !== undefined && !isNaN(value)) {
+            values.push({
+              country: country,
+              value: value
+            });
+          }
+        });
+        
+        // If we have values
+        if (values.length > 0) {
+          // Global average
+          const average = values.reduce((sum, item) => sum + item.value, 0) / values.length;
+          globalAvg.textContent = average.toFixed(2);
+          
+          // Countries count
+          countriesCount.textContent = values.length;
+          
+          // Highest value
+          const maxValue = Math.max(...values.map(item => item.value));
+          highestValue.textContent = maxValue.toFixed(2);
+          
+          // Lowest value
+          const minValue = Math.min(...values.map(item => item.value));
+          lowestValue.textContent = minValue.toFixed(2);
+          
+          // Top 5 countries
+          const topCountriesData = [...values]
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 5);
+          
+          topCountries.innerHTML = '';
+          topCountriesData.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'country-item';
+            // Convert ISO code to full name
+            const countryName = getCountryNameFromCode(item.country);
+            div.innerHTML = `
+              <div class="country-name">${countryName}</div>
+              <div class="country-value">${item.value.toFixed(2)}</div>
+            `;
+            topCountries.appendChild(div);
+          });
+          
+          // Bottom 5 countries
+          const bottomCountriesData = [...values]
+            .sort((a, b) => a.value - b.value)
+            .slice(0, 5);
+          
+          bottomCountries.innerHTML = '';
+          bottomCountriesData.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'country-item';
+            // Convert ISO code to full name
+            const countryName = getCountryNameFromCode(item.country);
+            div.innerHTML = `
+              <div class="country-name">${countryName}</div>
+              <div class="country-value">${item.value.toFixed(2)}</div>
+            `;
+            bottomCountries.appendChild(div);
+          });
+        } else {
+          // No data for this year/dataset
+          globalAvg.textContent = '--';
+          countriesCount.textContent = '0';
+          highestValue.textContent = '--';
+          lowestValue.textContent = '--';
+          topCountries.innerHTML = '';
+          bottomCountries.innerHTML = '';
+        }
+      }
+      
+      function getCountryNameFromCode(code) {
+        // Reverse lookup in the countryCodeMapping object
+        for (const [name, isoCode] of Object.entries(countryCodeMapping)) {
+          if (isoCode === code) {
+            return name;
+          }
+        }
+        return code.toUpperCase(); // Return uppercase code if no match found
+      }
+      
+      function togglePlay() {
+        if (isPlaying) {
+          // Stop playing
+          clearInterval(playInterval);
+          playButton.textContent = '▶ Play';
+          isPlaying = false;
+        } else {
+          // Start playing
+          playButton.textContent = '◼ Pause';
+          isPlaying = true;
+          
+          playInterval = setInterval(() => {
+            // Get the next year
+            const currentIndex = years.indexOf(currentYear);
+            if (currentIndex >= years.length - 1) {
+              // If reached the end, stop
+              clearInterval(playInterval);
+              playButton.textContent = '▶ Play';
+              isPlaying = false;
+              return;
+            }
+            
+            // Move to next year
+            currentYear = years[currentIndex + 1];
+            
+            // Update slider and visualization
+            yearSlider.value = currentYear;
+            yearDisplay.textContent = currentYear;
+            updateVisualization(currentYear, currentDataset);
+          }, 1500); // Change year every 1.5 seconds
+        }
+      }
+      
+      function resetVisualization() {
+        // Stop playing if it's playing
+        if (isPlaying) {
+          clearInterval(playInterval);
+          playButton.textContent = '▶ Play';
+          isPlaying = false;
+        }
+        
+        // Reset to first year
+        if (years.length > 0) {
+          currentYear = years[0];
+          yearSlider.value = currentYear;
+          yearDisplay.textContent = currentYear;
+          updateVisualization(currentYear, currentDataset);
+        }
+      }
+    });
+  </script>
+</body>
+</html>
