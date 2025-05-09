@@ -1,0 +1,669 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+############################################################
+# 01_eda.R — Descriptive stats, visual EDA, VIF check
+# Data path:  D:/Downloads/Files/DATA 467/project/Datasets/
+#             financial_collapse_data.csv
+# ---------------------------------------------------------
+# Packages: tidyverse, e1071, naniar, GGally, corrplot, car, here
+############################################################
+
+# ---- 0  Setup ----
+required_packages <- c("tidyverse", "e1071", "naniar",
+                       "GGally", "corrplot", "car", "here")
+
+installed_packages <- rownames(installed.packages())
+for (pkg in required_packages) {
+  if (!(pkg %in% installed_packages)) install.packages(pkg, dep = TRUE)
+}
+
+lapply(required_packages, library, character.only = TRUE)
+set.seed(123)
+
+dir.create(here("figs"),   showWarnings = FALSE, recursive = TRUE)
+dir.create(here("tables"), showWarnings = FALSE, recursive = TRUE)
+
+# ---- 1  Load data ----
+file_path <- "D:/Downloads/Files/DATA 467/project/Datasets/financial_collapse_data.csv"
+df <- read_csv(file_path, show_col_types = FALSE) |>
+        mutate(country_year = paste(country, year, sep = "_"))
+
+# ---- 2  Descriptive statistics (save as CSV) ----
+vars <- c("economic_index","gdp_growth","gov_debt",
+          "inflation_rate","interest_rates","black_market","cpi")
+
+desc_tbl <- df |>
+  select(all_of(vars)) |>
+  pivot_longer(everything()) |>
+  group_by(name) |>
+  summarise(
+    n    = n(),
+    mean = mean(value, na.rm = TRUE),
+    sd   = sd(value,   na.rm = TRUE),
+    min  = min(value,  na.rm = TRUE),
+    max  = max(value,  na.rm = TRUE),
+    skew = e1071::skewness(value, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+write_csv(desc_tbl, here("tables", "descriptive_stats.csv"))
+
+# ---- 3A  Log-scaled densities for skewed vars ----
+skew_vars <- c("gov_debt","inflation_rate","cpi")
+df |> 
+  pivot_longer(all_of(skew_vars)) |>
+  ggplot(aes(value)) +
+  geom_density(fill = "steelblue", alpha = 0.6) +
+  scale_x_log10() +
+  facet_wrap(~name, scales = "free") +
+  labs(title = "Log-scaled density plots of skewed variables",
+       x = "Log(value)", y = "Density") +
+  theme_minimal(base_size = 10)
+ggsave(here("figs", "densities_log.png"), width = 8, height = 3)
+
+# ---- 3B  Densities for symmetric-ish vars ----
+sym_vars <- setdiff(vars, skew_vars)
+df |>
+  pivot_longer(all_of(sym_vars)) |>
+  ggplot(aes(value)) +
+  geom_density(fill = "indianred", alpha = 0.6) +
+  facet_wrap(~name, scales = "free") +
+  labs(title = "Density plots of roughly symmetric variables",
+       x = "Value", y = "Density") +
+  theme_minimal(base_size = 10)
+ggsave(here("figs", "densities_linear.png"), width = 8, height = 4)
+
+# ---- 3C  Correlation heat-map ----
+cor_mat <- cor(df[vars], use = "pairwise.complete.obs")
+png(here("figs", "corr_heatmap.png"), width = 600, height = 500)
+corrplot(cor_mat, method = "color", type = "upper",
+         tl.cex = 0.8, addCoef.col = "black",
+         number.cex = 0.65, mar = c(0,0,1,0))
+title("Correlation Matrix", line = 0.5)
+dev.off()
+
+# ---- 3D  Pairwise scatter-matrix w/ LOESS ----
+ggpairs(df, columns = vars,
+        lower  = list(continuous = wrap("smooth_loess", alpha = 0.3, size = 0.2)),
+        upper  = list(continuous = wrap("cor", size = 3)),
+        progress = FALSE) +
+  theme_bw(base_size = 8)
+ggsave(here("figs", "pairs_loess.png"), width = 12, height = 12, dpi = 300)
+
+# ---- 3E  Missingness heat-map ----
+gg_miss_var(df[vars]) +
+  labs(title = "Variable-level Missingness") +
+  theme_minimal()
+ggsave(here("figs", "missing_heatmap.png"), width = 6, height = 4)
+
+# ---- 4  Collinearity check (VIF) ----
+model_full <- lm(economic_index ~ gdp_growth + gov_debt +
+                   inflation_rate + interest_rates + black_market + cpi,
+                 data = df)
+
+vif_tbl <- tibble(Variable = names(vif(model_full)),
+                  VIF      = as.vector(vif(model_full)))
+
+write_csv(vif_tbl, here("tables", "vif_table.csv"))
+
+message("✅ Stage 2–4 artefacts saved:\n  • figs/*.png\n  • tables/descriptive_stats.csv\n  • tables/vif_table.csv")
+
+```
+
+```{r}
+############################################################
+# 02_model_diagnostics.R
+# ---------------------------------------------------------
+# Prereqs: run 01_eda.R first.
+# Packages: tidyverse, broom, car, lmtest, ggplot2, here
+############################################################
+
+required_pkgs <- c("tidyverse", "broom", "car", "lmtest", "here")
+lapply(setdiff(required_pkgs, rownames(installed.packages())),
+       install.packages, dep = TRUE)
+lapply(required_pkgs, library, character.only = TRUE)
+
+set.seed(123)
+df <- read_csv("D:/Downloads/Files/DATA 467/project/Datasets/financial_collapse_data.csv",
+               show_col_types = FALSE)
+
+# ---- 1  Fit full model ----
+model_full <- lm(economic_index ~ gdp_growth + gov_debt +
+                   inflation_rate + interest_rates +
+                   black_market + cpi,
+                 data = df)
+
+# Save tidy summary
+tidy(model_full) |>
+  write_csv(here("tables", "model_full_coefficients.csv"))
+
+glance(model_full) |>
+  write_csv(here("tables", "model_full_fitstats.csv"))
+
+# ---- 2  Coefficient plot ----
+coef_df <- tidy(model_full) |>
+  filter(term != "(Intercept)")
+
+ggplot(coef_df, aes(reorder(term, estimate), estimate)) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymin = estimate - 1.96*std.error,
+                    ymax = estimate + 1.96*std.error),
+                width = 0.2) +
+  coord_flip() +
+  labs(title = "Full Model: Coefficient estimates (95% CI)",
+       x = NULL, y = "Estimate") +
+  theme_minimal(base_size = 10)
+ggsave(here("figs", "coefplot_full.png"), width = 6, height = 4)
+
+# ---- 3  Diagnostics ----
+# 3A Q-Q plot
+qq <- ggplot2::ggplot_build(ggplot(model_full, aes(sample = .stdresid)) +
+        stat_qq(alpha = 0.4) + stat_qq_line() +
+        labs(title = "Normal Q-Q Plot (studentised residuals)"))$plot
+ggsave(here("figs", "qq_full.png"), qq, width = 4, height = 4)
+
+# 3B Residual vs Fitted
+rvf <- augment(model_full) |>
+  ggplot(aes(.fitted, .std.resid)) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(se = FALSE, colour = "red") +
+  labs(title = "Residuals vs Fitted", x = "Fitted", y = "Studentised Residuals") +
+  theme_minimal(base_size = 10)
+ggsave(here("figs", "rvf_full.png"), rvf, width = 5, height = 4)
+
+# 3C  Formal tests
+set.seed(42)                       # reproducible subsample
+resid_vec <- rstandard(model_full)
+shap <- shapiro.test(sample(resid_vec, 5000))
+
+bp   <- bptest(model_full)
+
+test_tbl <- tibble(
+  Test = c("Shapiro-Wilk (Normality)", "Breusch–Pagan (Heteroscedasticity)"),
+  Statistic = c(shap$statistic, bp$statistic),
+  p_value   = c(shap$p.value, bp$p.value)
+)
+write_csv(test_tbl, here("tables", "diagnostic_tests.csv"))
+
+# 3D  Influence analysis (Cook's D)
+infl <- cooks.distance(model_full)
+cook_tbl <- tibble(row = seq_along(infl), cooks_d = infl) |>
+            arrange(desc(cooks_d)) |>
+            slice(1:10)
+write_csv(cook_tbl, here("tables", "top_cooksd.csv"))
+
+ggplot(cook_tbl, aes(row, cooks_d)) +
+  geom_col() +
+  geom_hline(yintercept = 4 / nrow(df), linetype = "dashed", colour = "red") +
+  labs(title = "Top 10 Cook's D values", x = "Row", y = "Cook's D") +
+  theme_minimal(base_size = 10)
+ggsave(here("figs", "cooksd_bar.png"), width = 5, height = 3)
+
+message("✅ Full model, diagnostics, and plots saved to /figs and /tables")
+
+```
+
+```{r}
+############################################################
+# 03_outlier_reduced.R
+# ---------------------------------------------------------
+# Performs influence filtering, refits models, compares coeffs
+############################################################
+
+library(tidyverse)
+library(broom)
+library(car)
+library(here)
+
+# ---- 1  Reload the dataset & full model ----
+df <- read_csv("D:/Downloads/Files/DATA 467/project/Datasets/financial_collapse_data.csv",
+               show_col_types = FALSE)
+full_formula <- economic_index ~ gdp_growth + gov_debt +
+                                 inflation_rate + interest_rates +
+                                 black_market + cpi
+model_full <- lm(full_formula, data = df)
+
+# ---- 2  Flag high-influence rows (Cook’s D > 4/n) ----
+n <- nrow(df)
+cook_vec <- cooks.distance(model_full)
+cutoff   <- 4 / n
+out_ids  <- which(cook_vec > cutoff)
+
+influence_tbl <- tibble(row_id = out_ids,
+                        country = df$country[out_ids],
+                        year    = df$year[out_ids],
+                        cooks_d = cook_vec[out_ids]) |>
+                arrange(desc(cooks_d))
+
+write_csv(influence_tbl, here("tables", "influential_points.csv"))
+
+# Remove and keep a clean copy
+df_clean <- df[-out_ids, ]
+
+# ---- 3  Refit full model on cleaned data ----
+model_full_clean <- lm(full_formula, data = df_clean)
+
+# ---- 4  Fit reduced model (clean data, no GDP-growth + rates) ----
+reduced_formula <- economic_index ~ gov_debt + inflation_rate +
+                                     black_market + cpi
+model_reduced <- lm(reduced_formula, data = df_clean)
+
+# ---- 5  Nested F-test (clean data) ----
+f_test <- anova(model_reduced, model_full_clean)
+write_csv(as_tibble(f_test), here("tables", "f_test_full_vs_reduced.csv"))
+
+# ---- 6  Coefficient comparison plot ----
+coef_full  <- tidy(model_full_clean, conf.int = TRUE) |>
+              filter(term != "(Intercept)") |>
+              mutate(model = "Full (clean)")
+coef_red   <- tidy(model_reduced, conf.int = TRUE) |>
+              mutate(model = "Reduced")
+
+coef_plot <- bind_rows(coef_full, coef_red) |>
+  mutate(term = str_replace(term, "_", "\n")) |>
+  ggplot(aes(term, estimate, colour = model)) +
+  geom_point(position = position_dodge(width = .4), size = 2) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+                width = .2, position = position_dodge(width = .4)) +
+  coord_flip() +
+  labs(title = "Coefficient Estimates: Full vs Reduced (after outlier removal)",
+       x = NULL, y = "Estimate") +
+  theme_minimal(base_size = 9)
+ggsave(here("figs", "coef_compare_clean.png"), coef_plot,
+       width = 6.5, height = 4)
+
+# ---- 7  Save tidy summaries ----
+tidy(model_full_clean)    |> write_csv(here("tables", "model_full_clean_coeffs.csv"))
+tidy(model_reduced)       |> write_csv(here("tables", "model_reduced_coeffs.csv"))
+glance(model_full_clean)  |> write_csv(here("tables", "model_full_clean_fitstats.csv"))
+glance(model_reduced)     |> write_csv(here("tables", "model_reduced_fitstats.csv"))
+
+message("✅ Stage 8 complete: influence table, F-test, coefficient comparison saved.")
+
+```
+
+```{r}
+############################################################
+# 04_boxcox_robust_collapse.R
+# ---------------------------------------------------------
+# Stage 9  : Normality remedy (Box-Cox)  + Robust regression
+# Stage 10 : Collapse frequency & sensitivity
+# Stage 11 : (optional) quick random-forest variable importance
+############################################################
+
+library(tidyverse)
+library(broom)
+library(car)
+library(MASS)        # boxcox + rlm
+library(nortest)     # AD & Lilliefors if needed
+library(here)
+set.seed(123)
+
+# ------- 0  Load CLEANED data (after removing influence) ----
+df <- read_csv("D:/Downloads/Files/DATA 467/project/Datasets/financial_collapse_data.csv",
+               show_col_types = FALSE)
+
+full_formula <- economic_index ~ gdp_growth + gov_debt +
+                               inflation_rate + interest_rates +
+                               black_market + cpi
+
+# IDs of high-influence rows from Stage 8
+cook_tbl <- read_csv(here("tables", "influential_points.csv"))
+rows_out <- cook_tbl$row_id
+df_clean <- df[-rows_out, ]
+
+# ------- 1  Normality check on cleaned residuals ------------
+model_full_clean <- lm(full_formula, data = df_clean)
+resid_vec <- rstandard(model_full_clean)
+
+norm_p <- nortest::ad.test(resid_vec)$p.value       # Anderson-Darling
+
+# ---------- Stage 9A  Box-Cox if p < 0.05 -------------------
+if (norm_p < 0.05) {
+  bc_obj  <- boxcox(model_full_clean, plotit = FALSE)
+  lambda  <- bc_obj$x[which.max(bc_obj$y)]
+  message(sprintf("Box-Cox λ chosen = %.3f", lambda))
+  
+  # Add transformed response
+  df_clean <- df_clean %>%
+              mutate(econ_bc = bcPower(economic_index, lambda))
+  
+  model_bc <- lm(update(full_formula, econ_bc ~ . - economic_index),
+                 data = df_clean)
+  
+  tidy(model_bc)  |> write_csv(here("tables", "model_bc_coeffs.csv"))
+  glance(model_bc) |> write_csv(here("tables", "model_bc_fitstats.csv"))
+  
+  # Plot Q-Q for BC model
+  ggplot(as.data.frame(studres(model_bc)), aes(sample = studres(model_bc))) +
+    stat_qq(alpha = .4) + stat_qq_line() +
+    labs(title = sprintf("Q-Q (Box-Cox λ = %.2f)", lambda),
+         x = "Theoretical Quantiles", y = "Studentised Residuals") +
+    theme_minimal(base_size = 9)
+  ggsave(here("figs", "qq_boxcox.png"), width = 4, height = 4)
+}
+
+# ---------- Stage 9B  Robust regression (M-estimator) -------
+model_rob <- MASS::rlm(full_formula, data = df_clean)
+tidy(model_rob)   |> write_csv(here("tables", "model_robust_coeffs.csv"))
+glance(model_rob) |> write_csv(here("tables", "model_robust_fitstats.csv"))
+
+# Coefficient plot: LS vs Robust
+coef_ls  <- tidy(model_full_clean) %>% filter(term != "(Intercept)") %>% mutate(model="OLS")
+coef_rb  <- tidy(model_rob)        %>% mutate(model="Robust")
+bind_rows(coef_ls, coef_rb) %>%
+  ggplot(aes(reorder(term, estimate), estimate, colour = model)) +
+  geom_point(position = position_dodge(.4)) +
+  coord_flip() +
+  labs(title = "OLS vs Robust Coefficient Estimates", x=NULL, y="Estimate") +
+  theme_minimal(base_size=9)
+ggsave(here("figs", "coef_robust_vs_ols.png"), width=6, height=4)
+
+# ---------- Stage 10  Collapse rarity & threshold curve -----
+# Define year-to-year change in econ index
+df_clean <- df_clean %>% arrange(country, year) %>%
+  group_by(country) %>%
+  mutate(econ_change = economic_index - lag(economic_index)) %>%
+  ungroup()
+
+# Old threshold −10
+collapse_old <- df_clean %>% filter(econ_change <= -10)
+write_csv(collapse_old, here("tables", "collapse_events_oldthresh.csv"))
+
+# Frequency bar
+collapse_old %>%
+  count(country) %>%
+  ggplot(aes(reorder(country,n), n)) +
+  geom_col(fill="steelblue") +
+  coord_flip() +
+  labs(title="Economic Collapse Events (Δ ≤ −10)", x=NULL, y="Count") +
+  theme_minimal(base_size = 9)
+ggsave(here("figs", "collapse_freq_old.png"), width=5, height=4)
+
+# Sensitivity curve: #events vs threshold
+thresh_seq <- seq(-2, -20, by = -2)
+sens_tbl <- map_df(thresh_seq, ~{
+  tibble(threshold = .x,
+         n_events  = sum(df_clean$econ_change <= .x, na.rm = TRUE))
+})
+write_csv(sens_tbl, here("tables", "collapse_sensitivity.csv"))
+
+ggplot(sens_tbl, aes(threshold, n_events)) +
+  geom_line() + geom_point() +
+  labs(title = "Collapse Events vs Threshold",
+       x = "Threshold (Δ economic_index)", y = "# Events") +
+  theme_minimal(base_size = 9)
+ggsave(here("figs", "collapse_threshold_sensitivity.png"),
+       width = 5, height = 4)
+
+# ---------- Stage 11 (Optional) Random-Forest importance ----
+# Comment this block out if you don’t need it
+# install.packages("randomForest")
+# library(randomForest)
+# rf_mod <- randomForest(economic_index ~ gdp_growth + gov_debt +
+#                          inflation_rate + interest_rates +
+#                          black_market + cpi,
+#                        data = df_clean, ntree = 500, importance = TRUE)
+# varImpPlot(rf_mod, main = "RF Variable Importance")
+# ggsave(here(\"figs\", \"rf_varimp.png\"), width=6, height=4)
+
+
+```
+
+```{r}
+############################################################
+# 05_logistic_drop7.R — Logistic regression for Δ ≤ –7
+# ---------------------------------------------------------
+# Predicts whether a country's economic index dropped by ≥7
+# points from previous year using macro indicators.
+############################################################
+
+library(tidyverse)
+library(rsample)
+library(broom)
+library(pROC)
+library(here)
+
+set.seed(123)
+
+# ---- 1. Load cleaned data ----
+df <- read_csv("D:/Downloads/Files/DATA 467/project/Datasets/financial_collapse_data.csv",
+               show_col_types = FALSE)
+
+rows_out <- read_csv(here("tables", "influential_points.csv"))$row_id
+df_clean <- df[-rows_out, ]
+
+# ---- 2. Create binary target: Δ economic_index ≤ –7 ----
+df_clean <- df_clean %>%
+  arrange(country, year) %>%
+  group_by(country) %>%
+  mutate(delta_index = economic_index - lag(economic_index)) %>%
+  ungroup() %>%
+  mutate(drop7 = if_else(delta_index <= -7, 1, 0, missing = 0)) %>%
+  drop_na()
+
+# Show class balance
+class_dist <- table(df_clean$drop7)
+print(class_dist)
+
+# ---- 3. Train/test split (70/30 stratified) ----
+split <- initial_split(df_clean, prop = 0.7, strata = drop7)
+train <- training(split)
+test  <- testing(split)
+
+# ---- 4. Fit models ----
+logit_full <- glm(drop7 ~ gdp_growth + gov_debt + inflation_rate +
+                    interest_rates + black_market + cpi,
+                  data = train, family = binomial())
+
+logit_reduced <- glm(drop7 ~ gov_debt + inflation_rate + black_market + cpi,
+                     data = train, family = binomial())
+
+# ---- 5. Save odds ratios ----
+write_csv(
+  tidy(logit_full, exponentiate = TRUE, conf.int = TRUE),
+  here("tables", "logit_full_or.csv")
+)
+
+write_csv(
+  tidy(logit_reduced, exponentiate = TRUE, conf.int = TRUE),
+  here("tables", "logit_reduced_or.csv")
+)
+
+# ---- 6. AIC and pseudo-R² ----
+pseudo_r2 <- function(model) {
+  1 - logLik(model) / logLik(update(model, . ~ 1))
+}
+
+fit_stats <- tibble(
+  Model = c("Full", "Reduced"),
+  AIC = c(AIC(logit_full), AIC(logit_reduced)),
+  Pseudo_R2 = c(pseudo_r2(logit_full), pseudo_r2(logit_reduced))
+)
+
+write_csv(fit_stats, here("tables", "logit_fitstats.csv"))
+
+# ---- 7. Predict and threshold classify ----
+test <- test %>%
+  mutate(
+    p_full = predict(logit_full, newdata = ., type = "response"),
+    p_red  = predict(logit_reduced, newdata = ., type = "response"),
+    pred_full = if_else(p_full >= 0.5, 1, 0),
+    pred_red  = if_else(p_red  >= 0.5, 1, 0)
+  )
+
+# ---- 8. Safe metric calculation ----
+get_metrics <- function(pred, truth) {
+  pred <- factor(pred,  levels = c(0,1))
+  truth <- factor(truth, levels = c(0,1))
+  cm <- table(Pred = pred, Truth = truth)
+
+  TP <- ifelse(all(c("1","1") %in% dimnames(cm)), cm["1","1"], 0)
+  TN <- ifelse(all(c("0","0") %in% dimnames(cm)), cm["0","0"], 0)
+  FP <- ifelse(all(c("1","0") %in% dimnames(cm)), cm["1","0"], 0)
+  FN <- ifelse(all(c("0","1") %in% dimnames(cm)), cm["0","1"], 0)
+
+  total <- TP + TN + FP + FN
+  accuracy     <- (TP + TN) / total
+  sensitivity  <- ifelse((TP + FN) > 0, TP / (TP + FN), NA)
+  specificity  <- ifelse((TN + FP) > 0, TN / (TN + FP), NA)
+
+  tibble(accuracy, sensitivity, specificity)
+}
+
+metrics_full <- get_metrics(test$pred_full, test$drop7)
+metrics_red  <- get_metrics(test$pred_red,  test$drop7)
+
+write_csv(metrics_full, here("tables", "logit_full_test_metrics.csv"))
+write_csv(metrics_red,  here("tables", "logit_reduced_test_metrics.csv"))
+
+# ---- 9. ROC curves ----
+roc_full <- roc(test$drop7, test$p_full)
+roc_red  <- roc(test$drop7, test$p_red)
+
+png(here("figs", "logit_roc.png"), width = 600, height = 450)
+plot(roc_full, col = "steelblue", lwd = 2, main = "ROC Curve — Logistic Models")
+plot(roc_red,  col = "firebrick", lwd = 2, add = TRUE)
+legend("bottomright",
+       legend = c(sprintf("Full AUC = %.3f", auc(roc_full)),
+                  sprintf("Reduced AUC = %.3f", auc(roc_red))),
+       col = c("steelblue", "firebrick"), lwd = 2)
+dev.off()
+
+message("✅ Logistic analysis complete. Outputs saved to /tables and /figs.")
+
+```
+
+```{r}
+# 05_logistic_drop7_noyardstick.R
+# ---------------------------------------------------------
+# Logistic regression: P(drop >= 7 points) vs macro predictors
+# (yardstick removed; metrics computed manually)
+############################################################
+
+# ---- 0  Setup ----
+pkgs <- c("tidyverse",        # dplyr, ggplot2, readr, etc.
+          "rsample",          # train–test split
+          "broom",            # tidy() for model outputs
+          "pROC",             # ROC / AUC
+          "here")             # clean paths
+
+lapply(setdiff(pkgs, rownames(installed.packages())),
+       install.packages, dependencies = TRUE)
+lapply(pkgs, library, character.only = TRUE)
+
+set.seed(123)
+
+# ---- 1  Load clean data (outliers removed) ----
+df_raw <- read_csv("D:/Downloads/Files/DATA 467/project/Datasets/financial_collapse_data.csv",
+                   show_col_types = FALSE)
+
+rows_out <- read_csv(here("tables", "influential_points.csv"))$row_id
+df_clean <- df_raw[-rows_out, ]
+
+# ---- 2  Create binary response : drop <= -7 ----
+df_clean <- df_clean %>% 
+  arrange(country, year) %>% 
+  group_by(country) %>% 
+  mutate(delta_econ = economic_index - lag(economic_index)) %>% 
+  ungroup() %>% 
+  mutate(drop7 = if_else(delta_econ <= -7, 1L, 0L, missing = 0L)) %>% 
+  drop_na()                                 # first year per country has NA delta; drop
+
+# Class balance check
+print(table(df_clean$drop7))
+
+# ---- 3  Train / Test split (70/30 stratified) ----
+split   <- initial_split(df_clean, prop = 0.7, strata = drop7)
+train   <- training(split)
+test    <- testing(split)
+
+# ---- 4  Logistic-Full: all six predictors ----
+logit_full <- glm(drop7 ~ gdp_growth + gov_debt + inflation_rate +
+                    interest_rates + black_market + cpi,
+                  family = binomial(link = "logit"), data = train)
+
+# ---- 5  Logistic-Reduced: four predictors ----
+logit_red <- glm(drop7 ~ gov_debt + inflation_rate + black_market + cpi,
+                 family = binomial(link = "logit"), data = train)
+
+# ---- 6  Export tidy coefficient tables ----
+tidy(logit_full, exponentiate = TRUE, conf.int = TRUE) %>%       # odds ratios
+  write_csv(here("tables", "logit_full_or.csv"))
+
+tidy(logit_red, exponentiate = TRUE, conf.int = TRUE) %>% 
+  write_csv(here("tables", "logit_reduced_or.csv"))
+
+# ---- 7  Goodness-of-fit ----
+fit_tbl <- tibble(
+  Model       = c("Full", "Reduced"),
+  AIC         = c(AIC(logit_full), AIC(logit_red)),
+  Pseudo_R2   = c(1 - logLik(logit_full) / logLik(update(logit_full, . ~ 1)),
+                  1 - logLik(logit_red)  / logLik(update(logit_red,  . ~ 1)))
+)
+write_csv(fit_tbl, here("tables", "logit_fitstats.csv"))
+
+# ---- 8  Predict on test set & metrics (base R) ----
+predict_proba <- function(model, data) {
+  predict(model, newdata = data, type = "response")
+}
+
+test <- test %>% 
+  mutate(proba_full = predict_proba(logit_full, .),
+         proba_red  = predict_proba(logit_red,  .))
+
+## helper to compute metrics without yardstick ---------------------------
+eval_metrics <- function(df, prob_col, threshold = 0.5) {
+  df <- df %>% mutate(pred = if_else(.data[[prob_col]] >= threshold, 1L, 0L))
+  
+  truth <- factor(df$drop7, levels = c(0, 1))
+  pred  <- factor(df$pred,  levels = c(0, 1))
+  cm    <- table(truth, pred)            # confusion matrix
+  
+  # Ensure matrix has all cells
+  TP <- cm["1","1"]; TN <- cm["0","0"]
+  FP <- cm["0","1"]; FN <- cm["1","0"]
+  
+  accuracy  <- (TP + TN) / sum(cm)
+  precision <- if ((TP + FP) == 0) NA else TP / (TP + FP)
+  recall    <- if ((TP + FN) == 0) NA else TP / (TP + FN)     # aka sensitivity
+  f1        <- if (is.na(precision) || is.na(recall) ||
+                   (precision + recall) == 0) NA
+              else 2 * precision * recall / (precision + recall)
+  
+  tibble(
+    metric = c("accuracy", "precision", "recall", "F1",
+               "TP", "TN", "FP", "FN"),
+    value  = c(accuracy, precision, recall, f1,
+               TP,        TN,        FP,   FN)
+  )
+}
+# ------------------------------------------------------------------------
+
+metrics_full <- eval_metrics(test, "proba_full")
+metrics_red  <- eval_metrics(test, "proba_red")
+
+write_csv(metrics_full, here("tables", "logit_full_test_metrics.csv"))
+write_csv(metrics_red,  here("tables", "logit_reduced_test_metrics.csv"))
+
+# ---- 9  ROC curves & AUC (pROC) ----
+roc_full <- roc(test$drop7, test$proba_full)
+roc_red  <- roc(test$drop7, test$proba_red)
+
+png(here("figs", "logit_roc.png"), width = 600, height = 450)
+plot(roc_full, col = "steelblue", lwd = 2, main = "ROC Curve (Test Set)")
+plot(roc_red,  col = "firebrick", add = TRUE, lwd = 2)
+legend("bottomright",
+       legend = c(sprintf("Full  AUC = %.3f", auc(roc_full)),
+                  sprintf("Reduced AUC = %.3f", auc(roc_red))),
+       col = c("steelblue", "firebrick"), lwd = 2, bty = "n")
+dev.off()
+
+# ---- 10  End message ----
+message("✅ Logistic models fitted. Coefficient OR tables, fit stats, test metrics, and ROC plot saved.")
+
+```
+
