@@ -27,7 +27,7 @@ dir.create(here("figs"),   showWarnings = FALSE, recursive = TRUE)
 dir.create(here("tables"), showWarnings = FALSE, recursive = TRUE)
 
 # ---- 1  Load data ----
-file_path <- "D:/Downloads/Files/DATA 467/project/Datasets/financial_collapse_data.csv"
+file_path <- "C:/Users/viswa/financial-collapse-indicators/financial_collapse_data.csv"
 df <- read_csv(file_path, show_col_types = FALSE) |>
         mutate(country_year = paste(country, year, sep = "_"))
 
@@ -127,8 +127,7 @@ lapply(setdiff(required_pkgs, rownames(installed.packages())),
 lapply(required_pkgs, library, character.only = TRUE)
 
 set.seed(123)
-df <- read_csv("D:/Downloads/Files/DATA 467/project/Datasets/financial_collapse_data.csv",
-               show_col_types = FALSE)
+df <- read_csv("C:/Users/viswa/financial-collapse-indicators/financial_collapse_data.csv",show_col_types = FALSE)
 
 # ---- 1  Fit full model ----
 model_full <- lm(economic_index ~ gdp_growth + gov_debt +
@@ -219,8 +218,8 @@ library(car)
 library(here)
 
 # ---- 1  Reload the dataset & full model ----
-df <- read_csv("D:/Downloads/Files/DATA 467/project/Datasets/financial_collapse_data.csv",
-               show_col_types = FALSE)
+
+df <- read_csv("C:/Users/viswa/financial-collapse-indicators/financial_collapse_data.csv",show_col_types = FALSE)
 full_formula <- economic_index ~ gdp_growth + gov_debt +
                                  inflation_rate + interest_rates +
                                  black_market + cpi
@@ -303,8 +302,7 @@ library(here)
 set.seed(123)
 
 # ------- 0  Load CLEANED data (after removing influence) ----
-df <- read_csv("D:/Downloads/Files/DATA 467/project/Datasets/financial_collapse_data.csv",
-               show_col_types = FALSE)
+df <- read_csv("C:/Users/viswa/financial-collapse-indicators/financial_collapse_data.csv",show_col_types = FALSE)
 
 full_formula <- economic_index ~ gdp_growth + gov_debt +
                                inflation_rate + interest_rates +
@@ -430,8 +428,7 @@ library(here)
 set.seed(123)
 
 # ---- 1. Load cleaned data ----
-df <- read_csv("D:/Downloads/Files/DATA 467/project/Datasets/financial_collapse_data.csv",
-               show_col_types = FALSE)
+df <- read_csv("C:/Users/viswa/financial-collapse-indicators/financial_collapse_data.csv",show_col_types = FALSE)
 
 rows_out <- read_csv(here("tables", "influential_points.csv"))$row_id
 df_clean <- df[-rows_out, ]
@@ -558,8 +555,7 @@ lapply(pkgs, library, character.only = TRUE)
 set.seed(123)
 
 # ---- 1  Load clean data (outliers removed) ----
-df_raw <- read_csv("D:/Downloads/Files/DATA 467/project/Datasets/financial_collapse_data.csv",
-                   show_col_types = FALSE)
+df_raw <- read_csv("C:/Users/viswa/financial-collapse-indicators/financial_collapse_data.csv",show_col_types = FALSE)
 
 rows_out <- read_csv(here("tables", "influential_points.csv"))$row_id
 df_clean <- df_raw[-rows_out, ]

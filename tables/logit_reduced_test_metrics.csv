@@ -1,0 +1,9 @@
+metric,value
+accuracy,0.9958308516974389
+precision,NA
+recall,0
+F1,NA
+TP,0
+TN,1672
+FP,0
+FN,7

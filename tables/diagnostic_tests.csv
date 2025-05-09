@@ -1,0 +1,3 @@
+Test,Statistic,p_value
+Shapiro-Wilk (Normality),0.9941738934670497,2.2505774263391178e-13
+Breusch–Pagan (Heteroscedasticity),14.544019747444297,0.024115668735503075
