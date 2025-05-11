@@ -1,63 +1,26 @@
-# 🌍 Economic Collapse & Performance Prediction
+# Predicting Economic Strength Using Macroeconomic Indicators
 
-This project investigates the economic performance and potential collapse risk of countries using financial, inflationary, and market indicators from 1990 to 2023. The primary goal is to model and understand what drives a country’s **economic strength**, using both regression and (eventually) classification techniques.
+This project investigates whether a combination of traditional and alternative macroeconomic indicators can reliably predict a country's economic strength. The analysis was completed as part of the requirements for DATA 467: Applied Linear Regression and GLMs at the University of Arizona.
 
----
+## 📘 Project Summary
 
-## 🎯 Project Objectives
+Our original goal was to model economic collapses, but due to the rarity of sharp declines, we instead developed a continuous **economic_index** (0–100) reflecting overall national economic performance. We also defined a binary indicator, **drop7**, for years where a country's index dropped by ≥7 points — used for logistic modeling.
 
-- Predict a country's **economic_index** (0–100 scale) using key macroeconomic indicators.
-- Identify the most influential predictors of economic stability and performance.
-- Visualize trends, outliers, and relationships in macroeconomic data.
-- Build interpretable models that can aid in early warning or policy evaluation.
+We explored both linear regression and logistic regression approaches and found that:
+- **Black market activity (shadow economy)** was the strongest and most stable predictor.
+- Traditional indicators such as **GDP growth** and **interest rates** showed minimal impact.
+- Models remained robust across Box-Cox transformations, outlier removal, and M-estimation.
 
----
-
-## 🧠 Why This Project?
-
-While GDP growth and inflation are often cited in isolation, real-world economic collapse tends to be driven by a complex mix of government debt, black market activity, interest rates, and inflation shocks. This project attempts to capture that complexity using a consolidated **economic_index** along with additional modeling layers.
+The final recommended model excludes GDP growth and interest rates due to their weak and inconsistent contribution.
 
 ---
 
----
+## 📂 Repository Structure
 
-## 📊 Variables Used
-
-| Variable         | Description                                              |
-|------------------|----------------------------------------------------------|
-| `economic_index` | Composite index (0–100) measuring economic performance   |
-| `gdp_growth`     | Annual GDP growth rate (%)                               |
-| `gov_debt`       | Government debt as % of GDP                              |
-| `inflation_rate` | Annual inflation rate (%)                                |
-| `interest_rates` | National interest rate (%)                               |
-| `black_market`   | Black market activity index                              |
-| `cpi`            | Consumer Price Index (general price level)               |
-
-
----
-
-## ✅ Current Progress
-
-- ✅ Data cleaning, merging, and imputation complete  
-- ✅ Exploratory data analysis (EDA) completed  
-- ✅ Multiple linear regression fitted  
-- ✅ Model comparison using F-test  
-- ✅ Diagnostic plots and assumptions evaluated  
-- ✅ Report written and submitted for the “Data Analysis & Linear Model” milestone
-
----
-
-## 🚧 What’s Next?
-
-- Explore more models
-- Evaluate predictive performance with training/testing splits or cross-validation
-
----
-
-## 👥 Authors
-
-- **Viswa Sushanth Karuturi** 
-- **Naeem Almohtaseb** 
-
----
-
+```plaintext
+financial-collapse-indicators/
+│
+├── scripts/        # R scripts for data cleaning, modeling, and plotting
+├── figs/           # Plots used in diagnostics and visual summaries
+├── data/           # Raw input, cleaned, and final merged datasets
+├── tables/         # Model outputs, coefficients, VIFs, test metrics, F-test results, etc.
